@@ -37,7 +37,7 @@ typedef struct {
 **/
 bool str_empty(const char *string)
 {
-  return NULL == string || 0 == strlen(string);
+  return NULL == string || '\0' == *string;
 }
 
 /**
@@ -107,7 +107,7 @@ bool strip_comments(char *string, char comment)
   }
   *q = '\0';
   
-  return 0 != strlen(string); /* 字符串长度不为0,表示数据可用 */
+  return !str_empty(string); /* 字符串不为空,表示数据可用 */
 }
 
 /**
@@ -243,7 +243,7 @@ bool cnf_write_file(Config *cnf, const char *filename, const char *header)
     exit(errno); /* 读文件错误直接按照错误码退出 */
   }
   
-  if (0 < strlen(header)) { /* 文件注释不为空,则写注释到文件 */
+  if (!str_empty(header)) { /* 文件注释不为空,则写注释到文件 */
     fprintf(fp, "%c %s\n\n", cnf->comment, header);
   }
   
@@ -270,7 +270,7 @@ bool cnf_remove_option(Config *cnf, const char *section, const char *key)
 {
   Data *ps = cnf_has_section(cnf, section);
   if (NULL == ps) { /* 没找到则不存在 */
-    return NULL;
+    return false;
   }
   
   Option *p, *q;
@@ -281,7 +281,7 @@ bool cnf_remove_option(Config *cnf, const char *section, const char *key)
   }
   
   if (NULL == p) { /* 没找到则不存在 */
-    return NULL;
+    return false;
   }
   
   if (p == q) { /* 第一个option就匹配了 */
