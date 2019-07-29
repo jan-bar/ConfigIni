@@ -37,7 +37,7 @@ typedef struct {
 **/
 bool str_empty(const char *string)
 {
-  return NULL == string || '\0' == *string;
+  return NULL == string || 0 == strlen(string);
 }
 
 /**
@@ -107,7 +107,7 @@ bool strip_comments(char *string, char comment)
   }
   *q = '\0';
   
-  return !str_empty(string); /* 字符串不为空,表示数据可用 */
+  return 0 != strlen(string); /* 字符串长度不为0,表示数据可用 */
 }
 
 /**
@@ -243,7 +243,7 @@ bool cnf_write_file(Config *cnf, const char *filename, const char *header)
     exit(errno); /* 读文件错误直接按照错误码退出 */
   }
   
-  if (!str_empty(header)) { /* 文件注释不为空,则写注释到文件 */
+  if (0 < strlen(header)) { /* 文件注释不为空,则写注释到文件 */
     fprintf(fp, "%c %s\n\n", cnf->comment, header);
   }
   
@@ -270,7 +270,7 @@ bool cnf_remove_option(Config *cnf, const char *section, const char *key)
 {
   Data *ps = cnf_has_section(cnf, section);
   if (NULL == ps) { /* 没找到则不存在 */
-    return false;
+    return NULL;
   }
   
   Option *p, *q;
@@ -281,7 +281,7 @@ bool cnf_remove_option(Config *cnf, const char *section, const char *key)
   }
   
   if (NULL == p) { /* 没找到则不存在 */
-    return false;
+    return NULL;
   }
   
   if (p == q) { /* 第一个option就匹配了 */
@@ -322,16 +322,46 @@ bool cnf_remove_section(Config *cnf, const char *section)
     q->next = p->next;
   }
   
-  Option *o = p->option;
-  while (NULL != o) {
-    free(o); /* 循环释放所有option */
+  Option *ot,*o = p->option;
+  while (NULL != o) { /* 循环释放所有option */
+    ot = o;
     o = o->next;
+    free(ot);
   }
   p->option = NULL; // 避免野指针
   free(p); /* 释放删除的section */
   q = p = NULL;  // 避免野指针
   
   return true;
+}
+
+/**
+* 销毁Config对象
+* 删除所有数据
+**/
+void destroy_config(Config **cnf)
+{
+  if (NULL != *cnf)
+  {
+    if (NULL != (*cnf)->data)
+    {
+      Data *pt,*p = (*cnf)->data;
+      Option *qt,*q;
+      while (NULL != p) {
+        q = p->option;
+        while (NULL != q) {
+          qt = q;
+          q = q->next;
+          free(qt);
+        }
+        pt = p;
+        p = p->next;
+        free(pt);
+      }
+    }
+    free(*cnf);
+    *cnf = NULL;
+  }
 }
 
 /**
@@ -381,5 +411,6 @@ int main(int argc, char *argv[])
   
   cnf->separator = ':'; // 将分隔符改成 : ,冒号
   cnf_write_file(cnf, "cnf_new.ini", "write a new ini file!"); // 将对象写入cnf_new.ini文件
+  destroy_config(&cnf); // 销毁Config对象
   return 0;
 }
