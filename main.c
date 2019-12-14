@@ -9,6 +9,10 @@
 // printf("File = %s\nLine = %d\nFunc=%s\nDate=%s\nTime=%s\n", __FILE__, __LINE__, __FUNCTION__, __DATE__, __TIME__);
 #define  PRINT_ERRMSG(STR) fprintf(stderr,"line:%d,msg:%s,eMsg:%s\n", __LINE__, STR, strerror(errno))
 
+#define TRIM_LIFT  1 /* 去除左边空白字符 */
+#define TRIM_RIGHT 2 /* 去除右边空白字符 */
+#define TRIM_SPACE 3 /* 去除两边空白字符 */
+
 typedef struct _option {
   char    key[MAX_VALUE];   /* 对应键 */
   char    value[MAX_VALUE]; /* 对应值 */
@@ -89,25 +93,28 @@ bool cnf_add_option(Config *cnf, const char *section, const char *key, const cha
 }
 
 /**
-* 去掉字符串内所有空白
-* 且忽略注释部分
-* 最终得到没有空白的字符串
+* 按照参数去除字符串左右空白
 **/
-bool strip_comments(char *string, char comment)
+char *trim_string(char *string,int mode)
 {
-  if (NULL == string || '\n' == *string || '\r' == *string) {
-    return false; /* 第一个字符为回车或换行,表示空行 */
-  }
-  
-  char *p, *q; /* 下面去掉字符串中所有空白字符 */
-  for (p = q = string; *p != '\0' && *p != comment; p++) {
-    if (0 == isspace(*p)) {
-      *q++ = *p; /* 不是空白字符则重写字符串 */
+  char *left = string;
+  if ((mode & 1) != 0) { // 去除左边空白字符
+    for (;*left != '\0'; left++) {
+      if (0 == isspace(*left)) {
+        break;
+      }
     }
   }
-  *q = '\0';
-  
-  return !str_empty(string); /* 字符串长度不为0,表示数据可用 */
+  if ((mode & 2) != 0) { // 去除右边空白字符
+    char *right = string - 1 + strlen(string);
+    for (;right >= left; right--) {
+      if (0 == isspace(*right)) {
+        *(right+1) = '\0';
+        break;
+      } 
+    }
+  }
+  return left;
 }
 
 /**
@@ -117,37 +124,53 @@ bool strip_comments(char *string, char comment)
 **/
 Config *cnf_read_config(const char *filename, char comment, char separator)
 {
-  Config *cnf     = (Config*)malloc(sizeof(Config));
-  cnf->comment    = comment; /* 每一行该字符及以后的字符将丢弃 */
-  cnf->separator  = separator; /* 用来分隔Section 和 数据 */
-  cnf->data       = NULL; /* 初始数据为空 */
-  
+  Config *cnf = (Config*)malloc(sizeof(Config));
+  if (NULL == cnf) {
+    exit(-1); /* 申请内存错误 */
+  }
+  cnf->comment   = comment; /* 每一行该字符及以后的字符将丢弃 */
+  cnf->separator = separator; /* 用来分隔Section 和 数据 */
+  cnf->data      = NULL; /* 初始数据为空 */
+
   if (str_empty(filename)) {
     return cnf; /* 空字符串则直接返回对象 */
   }
-  
-  char *p, sLine[MAX_VALUE];    /* 保存一行数据到字符串 */
-  char section[MAX_VALUE], key[MAX_VALUE], value[MAX_VALUE]; /* 缓存section,key,value */
+
   FILE *fp = fopen(filename, "r");
   if(NULL == fp) {
     PRINT_ERRMSG("fopen");
     exit(errno); /* 读文件错误直接按照错误码退出 */
   }
-  
+
+  char *s, *e, *pLine, sLine[MAX_VALUE];    /* 保存一行数据到字符串 */
+  char section[MAX_VALUE] = {'\0'}, key[MAX_VALUE], value[MAX_VALUE]; /* 缓存section,key,value */
   while (NULL != fgets(sLine, MAX_VALUE, fp)) {
-    if (strip_comments(sLine, cnf->comment)) { /* 去掉字符串所有空白,注释也忽略 */
-      if ('[' == sLine[0] && ']' == sLine[strlen(sLine)-1]) {
-        memset(section, '\0', MAX_VALUE); /* 清空section,因为strncpy不追加'\0' */
-        strncpy(section, sLine+1, strlen(sLine)-2);
-      } else if (NULL != (p = strchr(sLine, cnf->separator))) {  /* 存在分隔符 */
-        memset(key,   '\0', MAX_VALUE); /* 清空key,因为strncpy不追加'\0' */
-        strncpy(key,  sLine, p - sLine);
-        strcpy(value, p + 1); /* strcpy会追加'\0',所以妥妥哒 */
-        cnf_add_option(cnf, section, key, value); /* 添加section,key,value */
-      } /* 如果该行不存在分隔符则忽略这一行 */
-    } /* end strip_comments */
+    pLine = trim_string(sLine, TRIM_SPACE); /* 去掉一行两边的空白字符 */
+    if (*pLine == '\0' || *pLine == comment) {
+      continue; /* 空行或注释行跳过 */
+    }
+    s = strchr(pLine, comment);
+    if (s != NULL) {
+      *s = '\0'; /* 忽略本行注释后的字符 */
+    }
+
+    s = strchr(pLine, '[');
+    if (s != NULL) {
+      e = strchr(++s, ']');
+      if (e != NULL) {
+        *e = '\0'; /* 找到section */
+        strcpy(section, s);
+      }
+    } else {
+      s = strchr(pLine, separator);
+      if (s != NULL && *section != '\0') { /* 找到包含separator的行,且前面行已经找到section */
+        *s = '\0'; /* 将分隔符前后分成2个字符串 */
+        strcpy(key, trim_string(pLine, TRIM_RIGHT)); /* 赋值key */
+        strcpy(value, trim_string(s+1, TRIM_LIFT));  /* 赋值value */
+        cnf_add_option(cnf, section, key, value);    /* 添加section,key,value */
+      }
+    }
   } /* end while */
-  
   fclose(fp);
   return cnf;
 }
@@ -375,7 +398,7 @@ void print_config(Config *cnf)
     
     Option *q = p->option;
     while (NULL != q) {
-      printf("  %s %c %s\n", q->key, cnf->separator, q->value);
+      printf("%s%c%s\n", q->key, cnf->separator, q->value);
       q = q->next;
     }
     p = p->next;
@@ -393,9 +416,9 @@ int main(int argc, char *argv[])
   if (NULL == cnf) {
     return -1; /* 创建对象失败 */
   }
-  
+
   printf("-------------- After Read File --------------\n");
-  print_config(cnf); // 打印cnf对象  
+  print_config(cnf); // 打印cnf对象
   cnf_remove_section(cnf,"AAA"); // 删除AAA的section
   cnf_remove_option(cnf, "CC","df");  // 删除CC下的df
   printf("-------------- After remove --------------\n");
@@ -405,10 +428,10 @@ int main(int argc, char *argv[])
   cnf_add_option(cnf, "NEW1", "new_2", "true");
   printf("-------------- After add --------------\n");
   print_config(cnf); // 打印cnf对象  
-  
+
   cnf_get_value(cnf, "NEW1", "new_2"); // 获取NEW1下的new_2值
   printf("cnf_get_value:%s,%d,%d,%f\n",cnf->re_string,cnf->re_int,cnf->re_bool,cnf->re_double);
-  
+
   cnf->separator = ':'; // 将分隔符改成 : ,冒号
   cnf_write_file(cnf, "cnf_new.ini", "write a new ini file!"); // 将对象写入cnf_new.ini文件
   destroy_config(&cnf); // 销毁Config对象
