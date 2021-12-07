@@ -5,119 +5,136 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#define  MAX_VALUE  1024 /* ¶ÁÈ¡ÎÄ¼ş»º´æĞĞ×î´ó³¤¶È */
 // printf("File = %s\nLine = %d\nFunc=%s\nDate=%s\nTime=%s\n", __FILE__, __LINE__, __FUNCTION__, __DATE__, __TIME__);
-#define  PRINT_ERRMSG(STR) fprintf(stderr,"line:%d,msg:%s,eMsg:%s\n", __LINE__, STR, strerror(errno))
+#define PRINT_ERRMSG(STR) fprintf(stderr, "line:%d,msg:%s,eMsg:%s\n", __LINE__, STR, strerror(errno))
 
-#define TRIM_LIFT  1 /* È¥³ı×ó±ß¿Õ°××Ö·û */
-#define TRIM_RIGHT 2 /* È¥³ıÓÒ±ß¿Õ°××Ö·û */
-#define TRIM_SPACE 3 /* È¥³ıÁ½±ß¿Õ°××Ö·û */
+#define TRIM_LIFT 1  /* å»é™¤å·¦è¾¹ç©ºç™½å­—ç¬¦ */
+#define TRIM_RIGHT 2 /* å»é™¤å³è¾¹ç©ºç™½å­—ç¬¦ */
+#define TRIM_SPACE 3 /* å»é™¤ä¸¤è¾¹ç©ºç™½å­—ç¬¦ */
 
-typedef struct _option {
-  char    *key;           /* ¶ÔÓ¦¼ü */
-  char    *value;         /* ¶ÔÓ¦Öµ */
-  struct  _option *next;  /* Á´±íÁ¬½Ó±êÊ¶ */
-}Option;
+typedef struct _option
+{
+  char *key;            /* å¯¹åº”é”® */
+  char *value;          /* å¯¹åº”å€¼ */
+  struct _option *next; /* é“¾è¡¨è¿æ¥æ ‡è¯† */
+} Option;
 
-typedef struct _data {
-  char    *section;    /* ±£´æsectionÖµ */
-  Option  *option;     /* optionÁ´±íÍ·  */
-  struct  _data *next; /* Á´±íÁ¬½Ó±êÊ¶  */
-}Data;
+typedef struct _data
+{
+  char *section;      /* ä¿å­˜sectionå€¼ */
+  Option *option;     /* optioné“¾è¡¨å¤´  */
+  struct _data *next; /* é“¾è¡¨è¿æ¥æ ‡è¯†  */
+} Data;
 
-typedef struct {
-  char    comment;    /* ±íÊ¾×¢ÊÍµÄ·ûºÅ    */
-  char    separator;  /* ±íÊ¾·Ö¸ô·û        */
-  char    *re_string; /* ·µ»ØÖµ×Ö·û´®µÄÖµ  */
-  int     re_int;     /* ·µ»ØintµÄÖµ       */
-  bool    re_bool;    /* ·µ»ØboolµÄÖµ      */
-  double  re_double ; /* ·µ»ØdoubleÀàĞÍ    */
-  Data    *data;      /* ±£´æÊı¾İµÄÍ·      */
-}Config;
+typedef struct
+{
+  char comment;     /* è¡¨ç¤ºæ³¨é‡Šçš„ç¬¦å·    */
+  char separator;   /* è¡¨ç¤ºåˆ†éš”ç¬¦        */
+  char *re_string;  /* è¿”å›å€¼å­—ç¬¦ä¸²çš„å€¼  */
+  int re_int;       /* è¿”å›intçš„å€¼       */
+  bool re_bool;     /* è¿”å›boolçš„å€¼      */
+  double re_double; /* è¿”å›doubleç±»å‹    */
+  Data *data;       /* ä¿å­˜æ•°æ®çš„å¤´      */
+} Config;
 
 /**
-* ÅĞ¶Ï×Ö·û´®ÊÇ·ñÎª¿Õ
-* Îª¿Õ·µ»Øtrue,²»Îª¿Õ·µ»Øfalse
-**/
+ * åˆ¤æ–­å­—ç¬¦ä¸²æ˜¯å¦ä¸ºç©º
+ * ä¸ºç©ºè¿”å›true,ä¸ä¸ºç©ºè¿”å›false
+ **/
 bool str_empty(const char *string)
 {
   return NULL == string || '\0' == *string;
 }
 
 /**
-* ÏòÁ´±íÌí¼Ósection,key,value
-* Èç¹ûÌí¼ÓÊ±²»´æÔÚsectionÔòĞÂÔöÒ»¸ö
-* Èç¹û¶ÔÓ¦sectionµÄkey²»´æÔÚÔòĞÂÔöÒ»¸ö
-* Èç¹ûsectionÒÑ´æÔÚÔò²»»áÖØ¸´´´½¨
-* Èç¹û¶ÔÓ¦sectionµÄkeyÒÑ´æÔÚÔòÖ»»á¸²¸ÇkeyµÄÖµ
-**/
+ * å‘é“¾è¡¨æ·»åŠ section,key,value
+ * å¦‚æœæ·»åŠ æ—¶ä¸å­˜åœ¨sectionåˆ™æ–°å¢ä¸€ä¸ª
+ * å¦‚æœå¯¹åº”sectionçš„keyä¸å­˜åœ¨åˆ™æ–°å¢ä¸€ä¸ª
+ * å¦‚æœsectionå·²å­˜åœ¨åˆ™ä¸ä¼šé‡å¤åˆ›å»º
+ * å¦‚æœå¯¹åº”sectionçš„keyå·²å­˜åœ¨åˆ™åªä¼šè¦†ç›–keyçš„å€¼
+ **/
 bool cnf_add_option(Config *cnf, const char *section, const char *key, const char *value)
 {
-  if (NULL == cnf || str_empty(section) || str_empty(key) || str_empty(value)) {
-    return false; /* ²ÎÊı²»ÕıÈ·,·µ»Øfalse */
+  if (NULL == cnf || str_empty(section) || str_empty(key) || str_empty(value))
+  {
+    return false; /* å‚æ•°ä¸æ­£ç¡®,è¿”å›false */
   }
 
-  Data *p = cnf->data; /* ÈÃ±äÁ¿pÑ­»·±éÀúdata,ÕÒµ½¶ÔÓ¦section */
-  while (NULL != p && 0 != strcmp(p->section, section)) {
+  Data *p = cnf->data; /* è®©å˜é‡på¾ªç¯éå†data,æ‰¾åˆ°å¯¹åº”section */
+  while (NULL != p && 0 != strcmp(p->section, section))
+  {
     p = p->next;
   }
 
-  if (NULL == p) { /* ËµÃ÷Ã»ÓĞÕÒµ½section,ĞèÒª¼ÓÒ»¸ö */
-    Data *ps = (Data*)malloc(sizeof(Data));
-    if (NULL == ps) {
-      exit(-1); /* ÉêÇëÄÚ´æ´íÎó */
+  if (NULL == p)
+  { /* è¯´æ˜æ²¡æœ‰æ‰¾åˆ°section,éœ€è¦åŠ ä¸€ä¸ª */
+    Data *ps = (Data *)malloc(sizeof(Data));
+    if (NULL == ps)
+    {
+      exit(-1); /* ç”³è¯·å†…å­˜é”™è¯¯ */
     }
-    /* ¶¯Ì¬ÉêÇësectionÄÚ´æ */
-    ps->section = (char*)malloc(sizeof(char) * (strlen(section)+1));
+    /* åŠ¨æ€ç”³è¯·sectionå†…å­˜ */
+    ps->section = (char *)malloc(sizeof(char) * (strlen(section) + 1));
     strcpy(ps->section, section);
-    ps->option = NULL;    /* ³õÊ¼µÄoptionÒªÎª¿Õ */
-    ps->next = cnf->data; /* cnf->data¿ÉÄÜÎªNULL */
-    cnf->data = p = ps;   /* Í·²å·¨²åÈëÁ´±í */
+    ps->option = NULL;    /* åˆå§‹çš„optionè¦ä¸ºç©º */
+    ps->next = cnf->data; /* cnf->dataå¯èƒ½ä¸ºNULL */
+    cnf->data = p = ps;   /* å¤´æ’æ³•æ’å…¥é“¾è¡¨ */
   }
 
   Option *q = p->option;
-  while (NULL != q && 0 != strcmp(q->key, key)) {
-    q = q->next; /* ±éÀúoption,¼ì²ékeyÊÇ·ñÒÑ¾­´æÔÚ */
+  while (NULL != q && 0 != strcmp(q->key, key))
+  {
+    q = q->next; /* éå†option,æ£€æŸ¥keyæ˜¯å¦å·²ç»å­˜åœ¨ */
   }
 
-  if (NULL == q) { /* ²»´æÔÚoption,ÔòĞÂ½¨Ò»¸ö */
-    q = (Option*)malloc(sizeof(Option));
-    if (NULL == q) {
-      exit(-1); /* ÉêÇëÄÚ´æ´íÎó */
+  if (NULL == q)
+  { /* ä¸å­˜åœ¨option,åˆ™æ–°å»ºä¸€ä¸ª */
+    q = (Option *)malloc(sizeof(Option));
+    if (NULL == q)
+    {
+      exit(-1); /* ç”³è¯·å†…å­˜é”™è¯¯ */
     }
-    /* ¶¯Ì¬ÉêÇëkeyÄÚ´æ */
-    q->key = (char*)malloc(sizeof(char) * (strlen(key)+1));
+    /* åŠ¨æ€ç”³è¯·keyå†…å­˜ */
+    q->key = (char *)malloc(sizeof(char) * (strlen(key) + 1));
     strcpy(q->key, key);
-    q->next = p->option; /*ÕâÀïp->option¿ÉÄÜÎªNULL,²»¹ıÒ²Ã»¹ØÏµ */
-    p->option = q; /* Í·²å·¨²åÈëÁ´±í */
-    /* ¶¯Ì¬ÉêÇëvalueÄÚ´æ */
-    q->value = (char*)malloc(sizeof(char) * (strlen(value)+1));
-  } else if (strlen(q->value) < strlen(value)) {
-    /* µ±ĞÂÖµ³¤¶ÈĞ¡ÓÚ¾ÉÖµ,ÖØĞÂÉêÇëÄÚ´æ */
-    q->value = (char*)realloc(q->value, sizeof(char) * (strlen(value)+1));
+    q->next = p->option; /*è¿™é‡Œp->optionå¯èƒ½ä¸ºNULL,ä¸è¿‡ä¹Ÿæ²¡å…³ç³» */
+    p->option = q;       /* å¤´æ’æ³•æ’å…¥é“¾è¡¨ */
+    /* åŠ¨æ€ç”³è¯·valueå†…å­˜ */
+    q->value = (char *)malloc(sizeof(char) * (strlen(value) + 1));
   }
-  strcpy(q->value, value); /* ÎŞÂÛÈçºÎÒª°ÑÖµ¸ÄÁË */
+  else if (strlen(q->value) < strlen(value))
+  {
+    /* å½“æ–°å€¼é•¿åº¦å¤§äºæ—§å€¼,é‡æ–°ç”³è¯·å†…å­˜ */
+    q->value = (char *)realloc(q->value, sizeof(char) * (strlen(value) + 1));
+  }
+  strcpy(q->value, value); /* æ— è®ºå¦‚ä½•è¦æŠŠå€¼æ”¹äº† */
   return true;
 }
 
 /**
-* °´ÕÕ²ÎÊıÈ¥³ı×Ö·û´®×óÓÒ¿Õ°×
-**/
-char *trim_string(char *string,int mode)
+ * æŒ‰ç…§å‚æ•°å»é™¤å­—ç¬¦ä¸²å·¦å³ç©ºç™½
+ **/
+char *trim_string(char *string, int mode)
 {
   char *left = string;
-  if ((mode & TRIM_LIFT) != 0) { // È¥³ı×ó±ß¿Õ°××Ö·û
-    for (;*left != '\0'; left++) {
-      if (0 == isspace(*left)) {
+  if ((mode & TRIM_LIFT) != 0)
+  { // å»é™¤å·¦è¾¹ç©ºç™½å­—ç¬¦
+    for (; *left != '\0'; left++)
+    {
+      if (0 == isspace(*left))
+      {
         break;
       }
     }
   }
-  if ((mode & TRIM_RIGHT) != 0) { // È¥³ıÓÒ±ß¿Õ°××Ö·û
+  if ((mode & TRIM_RIGHT) != 0)
+  { // å»é™¤å³è¾¹ç©ºç™½å­—ç¬¦
     char *right = string - 1 + strlen(string);
-    for (;right >= left; right--) {
-      if (0 == isspace(*right)) {
-        *(right+1) = '\0';
+    for (; right >= left; right--)
+    {
+      if (0 == isspace(*right))
+      {
+        *(right + 1) = '\0';
         break;
       }
     }
@@ -126,56 +143,69 @@ char *trim_string(char *string,int mode)
 }
 
 /**
-* ´«µİÅäÖÃÎÄ¼şÂ·¾¶
-* ²ÎÊıÓĞÎÄ¼şÂ·¾¶,×¢ÊÍ×Ö·û,·Ö¸ô·û
-* ·µ»ØConfig½á¹¹Ìå
-**/
+ * ä¼ é€’é…ç½®æ–‡ä»¶è·¯å¾„
+ * å‚æ•°æœ‰æ–‡ä»¶è·¯å¾„,æ³¨é‡Šå­—ç¬¦,åˆ†éš”ç¬¦
+ * è¿”å›Configç»“æ„ä½“
+ **/
 Config *cnf_read_config(const char *filename, char comment, char separator)
 {
-  Config *cnf = (Config*)malloc(sizeof(Config));
-  if (NULL == cnf) {
-    exit(-1); /* ÉêÇëÄÚ´æ´íÎó */
+  Config *cnf = (Config *)malloc(sizeof(Config));
+  if (NULL == cnf)
+  {
+    exit(-1); /* ç”³è¯·å†…å­˜é”™è¯¯ */
   }
-  cnf->comment   = comment; /* Ã¿Ò»ĞĞ¸Ã×Ö·û¼°ÒÔºóµÄ×Ö·û½«¶ªÆú */
-  cnf->separator = separator; /* ÓÃÀ´·Ö¸ôSection ºÍ Êı¾İ */
-  cnf->data      = NULL; /* ³õÊ¼Êı¾İÎª¿Õ */
+  cnf->comment = comment;     /* æ¯ä¸€è¡Œè¯¥å­—ç¬¦åŠä»¥åçš„å­—ç¬¦å°†ä¸¢å¼ƒ */
+  cnf->separator = separator; /* ç”¨æ¥åˆ†éš”Section å’Œ æ•°æ® */
+  cnf->data = NULL;           /* åˆå§‹æ•°æ®ä¸ºç©º */
 
-  if (str_empty(filename)) {
-    return cnf; /* ¿Õ×Ö·û´®ÔòÖ±½Ó·µ»Ø¶ÔÏó */
+  if (str_empty(filename))
+  {
+    return cnf; /* ç©ºå­—ç¬¦ä¸²åˆ™ç›´æ¥è¿”å›å¯¹è±¡ */
   }
 
   FILE *fp = fopen(filename, "r");
-  if(NULL == fp) {
+  if (NULL == fp)
+  {
     PRINT_ERRMSG("fopen");
-    exit(errno); /* ¶ÁÎÄ¼ş´íÎóÖ±½Ó°´ÕÕ´íÎóÂëÍË³ö */
+    exit(errno); /* è¯»æ–‡ä»¶é”™è¯¯ç›´æ¥æŒ‰ç…§é”™è¯¯ç é€€å‡º */
   }
 
-  char *s, *e, *pLine, sLine[MAX_VALUE];    /* ±£´æÒ»ĞĞÊı¾İµ½×Ö·û´® */
-  char section[MAX_VALUE] = {'\0'}, key[MAX_VALUE], value[MAX_VALUE]; /* »º´æsection,key,value */
-  while (NULL != fgets(sLine, MAX_VALUE, fp)) {
-    pLine = trim_string(sLine, TRIM_SPACE); /* È¥µôÒ»ĞĞÁ½±ßµÄ¿Õ°××Ö·û */
-    if (*pLine == '\0' || *pLine == comment) {
-      continue; /* ¿ÕĞĞ»ò×¢ÊÍĞĞÌø¹ı */
+#define MAX_VALUE 1024 /* è¯»å–æ–‡ä»¶ç¼“å­˜è¡Œæœ€å¤§é•¿åº¦ */
+
+  char *s, *e, *pLine, sLine[MAX_VALUE];                              /* ä¿å­˜ä¸€è¡Œæ•°æ®åˆ°å­—ç¬¦ä¸² */
+  char section[MAX_VALUE] = {'\0'}, key[MAX_VALUE], value[MAX_VALUE]; /* ç¼“å­˜section,key,value */
+  while (NULL != fgets(sLine, MAX_VALUE, fp))
+  {
+    pLine = trim_string(sLine, TRIM_SPACE); /* å»æ‰ä¸€è¡Œä¸¤è¾¹çš„ç©ºç™½å­—ç¬¦ */
+    if (*pLine == '\0' || *pLine == comment)
+    {
+      continue; /* ç©ºè¡Œæˆ–æ³¨é‡Šè¡Œè·³è¿‡ */
     }
     s = strchr(pLine, comment);
-    if (s != NULL) {
-      *s = '\0'; /* ºöÂÔ±¾ĞĞ×¢ÊÍºóµÄ×Ö·û */
+    if (s != NULL)
+    {
+      *s = '\0'; /* å¿½ç•¥æœ¬è¡Œæ³¨é‡Šåçš„å­—ç¬¦ */
     }
 
     s = strchr(pLine, '[');
-    if (s != NULL) {
+    if (s != NULL)
+    {
       e = strchr(++s, ']');
-      if (e != NULL) {
-        *e = '\0'; /* ÕÒµ½section */
+      if (e != NULL)
+      {
+        *e = '\0'; /* æ‰¾åˆ°section */
         strcpy(section, s);
       }
-    } else {
+    }
+    else
+    {
       s = strchr(pLine, separator);
-      if (s != NULL && *section != '\0') { /* ÕÒµ½°üº¬separatorµÄĞĞ,ÇÒÇ°ÃæĞĞÒÑ¾­ÕÒµ½section */
-        *s = '\0'; /* ½«·Ö¸ô·ûÇ°ºó·Ö³É2¸ö×Ö·û´® */
-        strcpy(key, trim_string(pLine, TRIM_RIGHT)); /* ¸³Öµkey */
-        strcpy(value, trim_string(s+1, TRIM_LIFT));  /* ¸³Öµvalue */
-        cnf_add_option(cnf, section, key, value);    /* Ìí¼Ósection,key,value */
+      if (s != NULL && *section != '\0')
+      {                                               /* æ‰¾åˆ°åŒ…å«separatorçš„è¡Œ,ä¸”å‰é¢è¡Œå·²ç»æ‰¾åˆ°section */
+        *s = '\0';                                    /* å°†åˆ†éš”ç¬¦å‰ååˆ†æˆ2ä¸ªå­—ç¬¦ä¸² */
+        strcpy(key, trim_string(pLine, TRIM_RIGHT));  /* èµ‹å€¼key */
+        strcpy(value, trim_string(s + 1, TRIM_LIFT)); /* èµ‹å€¼value */
+        cnf_add_option(cnf, section, key, value);     /* æ·»åŠ section,key,value */
       }
     }
   } /* end while */
@@ -184,53 +214,59 @@ Config *cnf_read_config(const char *filename, char comment, char separator)
 }
 
 /**
-* »ñÈ¡Ö¸¶¨ÀàĞÍµÄÖµ
-* ¸ù¾İ²»Í¬ÀàĞÍ»á¸³Öµ¸ø¶ÔÓ¦Öµ
-* ±¾·½·¨ĞèÒª×¢Òâ,intºÍdoubleµÄ×ª»»,²»Âú×ã¾ÍÊÇ0
-*     ĞèÒª×Ô¼ºĞ´´úÂëÊ±ÅĞ¶ÏºÃ
-**/
+ * è·å–æŒ‡å®šç±»å‹çš„å€¼
+ * æ ¹æ®ä¸åŒç±»å‹ä¼šèµ‹å€¼ç»™å¯¹åº”å€¼
+ * æœ¬æ–¹æ³•éœ€è¦æ³¨æ„,intå’Œdoubleçš„è½¬æ¢,ä¸æ»¡è¶³å°±æ˜¯0
+ *     éœ€è¦è‡ªå·±å†™ä»£ç æ—¶åˆ¤æ–­å¥½
+ **/
 bool cnf_get_value(Config *cnf, const char *section, const char *key)
 {
-  Data *p = cnf->data; /* ÈÃ±äÁ¿pÑ­»·±éÀúdata,ÕÒµ½¶ÔÓ¦section */
-  while (NULL != p && 0 != strcmp(p->section, section)) {
+  Data *p = cnf->data; /* è®©å˜é‡på¾ªç¯éå†data,æ‰¾åˆ°å¯¹åº”section */
+  while (NULL != p && 0 != strcmp(p->section, section))
+  {
     p = p->next;
   }
 
-  if (NULL == p) {
+  if (NULL == p)
+  {
     PRINT_ERRMSG("section not find!");
     return false;
   }
 
   Option *q = p->option;
-  while (NULL != q && 0 != strcmp(q->key, key)) {
-    q = q->next; /* ±éÀúoption,¼ì²ékeyÊÇ·ñÒÑ¾­´æÔÚ */
+  while (NULL != q && 0 != strcmp(q->key, key))
+  {
+    q = q->next; /* éå†option,æ£€æŸ¥keyæ˜¯å¦å·²ç»å­˜åœ¨ */
   }
 
-  if (NULL == q) {
+  if (NULL == q)
+  {
     PRINT_ERRMSG("key not find!");
     return false;
   }
 
-  cnf->re_string = q->value;              /* ¸³Öµ½á¹û */
-  cnf->re_int    = atoi(cnf->re_string);  /* ×ª»»ÎªÕûĞÎ */
-  cnf->re_bool   = 0 == strcmp ("true", cnf->re_string); /* ×ª»»ÎªboolĞÍ */
-  cnf->re_double = atof(cnf->re_string);  /* ×ª»»ÎªdoubleĞÍ */
+  cnf->re_string = q->value;                          /* èµ‹å€¼ç»“æœ */
+  cnf->re_int = atoi(cnf->re_string);                 /* è½¬æ¢ä¸ºæ•´å½¢ */
+  cnf->re_bool = 0 == strcmp("true", cnf->re_string); /* è½¬æ¢ä¸ºboolå‹ */
+  cnf->re_double = atof(cnf->re_string);              /* è½¬æ¢ä¸ºdoubleå‹ */
   return true;
 }
 
 /**
-* ÅĞ¶ÏsectionÊÇ·ñ´æÔÚ
-* ²»´æÔÚ·µ»Ø¿ÕÖ¸Õë
-* ´æÔÚÔò·µ»Ø°üº¬ÄÇ¸ösectionµÄDataÖ¸Õë
-**/
+ * åˆ¤æ–­sectionæ˜¯å¦å­˜åœ¨
+ * ä¸å­˜åœ¨è¿”å›ç©ºæŒ‡é’ˆ
+ * å­˜åœ¨åˆ™è¿”å›åŒ…å«é‚£ä¸ªsectionçš„DataæŒ‡é’ˆ
+ **/
 Data *cnf_has_section(Config *cnf, const char *section)
 {
-  Data *p = cnf->data; /* ÈÃ±äÁ¿pÑ­»·±éÀúdata,ÕÒµ½¶ÔÓ¦section */
-  while (NULL != p && 0 != strcmp(p->section, section)) {
+  Data *p = cnf->data; /* è®©å˜é‡på¾ªç¯éå†data,æ‰¾åˆ°å¯¹åº”section */
+  while (NULL != p && 0 != strcmp(p->section, section))
+  {
     p = p->next;
   }
 
-  if (NULL == p) { /* Ã»ÕÒµ½Ôò²»´æÔÚ */
+  if (NULL == p)
+  { /* æ²¡æ‰¾åˆ°åˆ™ä¸å­˜åœ¨ */
     return NULL;
   }
 
@@ -238,22 +274,25 @@ Data *cnf_has_section(Config *cnf, const char *section)
 }
 
 /**
-* ÅĞ¶ÏÖ¸¶¨optionÊÇ·ñ´æÔÚ
-* ²»´æÔÚ·µ»Ø¿ÕÖ¸Õë
-* ´æÔÚÔò·µ»Ø°üº¬ÄÇ¸ösectionÏÂkeyµÄOptionÖ¸Õë
-**/
+ * åˆ¤æ–­æŒ‡å®šoptionæ˜¯å¦å­˜åœ¨
+ * ä¸å­˜åœ¨è¿”å›ç©ºæŒ‡é’ˆ
+ * å­˜åœ¨åˆ™è¿”å›åŒ…å«é‚£ä¸ªsectionä¸‹keyçš„OptionæŒ‡é’ˆ
+ **/
 Option *cnf_has_option(Config *cnf, const char *section, const char *key)
 {
   Data *p = cnf_has_section(cnf, section);
-  if (NULL == p) { /* Ã»ÕÒµ½Ôò²»´æÔÚ */
+  if (NULL == p)
+  { /* æ²¡æ‰¾åˆ°åˆ™ä¸å­˜åœ¨ */
     return NULL;
   }
 
   Option *q = p->option;
-  while (NULL != q && 0 != strcmp(q->key, key)) {
-    q = q->next; /* ±éÀúoption,¼ì²ékeyÊÇ·ñÒÑ¾­´æÔÚ */
+  while (NULL != q && 0 != strcmp(q->key, key))
+  {
+    q = q->next; /* éå†option,æ£€æŸ¥keyæ˜¯å¦å·²ç»å­˜åœ¨ */
   }
-  if (NULL == q) { /* Ã»ÕÒµ½Ôò²»´æÔÚ */
+  if (NULL == q)
+  { /* æ²¡æ‰¾åˆ°åˆ™ä¸å­˜åœ¨ */
     return NULL;
   }
 
@@ -261,28 +300,32 @@ Option *cnf_has_option(Config *cnf, const char *section, const char *key)
 }
 
 /**
-* ½«Config¶ÔÏóĞ´ÈëÖ¸¶¨ÎÄ¼şÖĞ
-* header±íÊ¾ÔÚÎÄ¼ş¿ªÍ·¼ÓÒ»¾ä×¢ÊÍ
-* Ğ´Èë³É¹¦Ôò·µ»Øtrue
-**/
+ * å°†Configå¯¹è±¡å†™å…¥æŒ‡å®šæ–‡ä»¶ä¸­
+ * headerè¡¨ç¤ºåœ¨æ–‡ä»¶å¼€å¤´åŠ ä¸€å¥æ³¨é‡Š
+ * å†™å…¥æˆåŠŸåˆ™è¿”å›true
+ **/
 bool cnf_write_file(Config *cnf, const char *filename, const char *header)
 {
   FILE *fp = fopen(filename, "w");
-  if(NULL == fp) {
+  if (NULL == fp)
+  {
     PRINT_ERRMSG("fopen");
-    exit(errno); /* ¶ÁÎÄ¼ş´íÎóÖ±½Ó°´ÕÕ´íÎóÂëÍË³ö */
+    exit(errno); /* è¯»æ–‡ä»¶é”™è¯¯ç›´æ¥æŒ‰ç…§é”™è¯¯ç é€€å‡º */
   }
 
-  if (!str_empty(header)) { /* ÎÄ¼ş×¢ÊÍ²»Îª¿Õ,ÔòĞ´×¢ÊÍµ½ÎÄ¼ş */
+  if (!str_empty(header))
+  { /* æ–‡ä»¶æ³¨é‡Šä¸ä¸ºç©º,åˆ™å†™æ³¨é‡Šåˆ°æ–‡ä»¶ */
     fprintf(fp, "%c %s\n\n", cnf->comment, header);
   }
 
   Option *q;
-  Data   *p = cnf->data;
-  while (NULL != p) {
+  Data *p = cnf->data;
+  while (NULL != p)
+  {
     fprintf(fp, "[%s]\n", p->section);
     q = p->option;
-    while (NULL != q) {
+    while (NULL != q)
+    {
       fprintf(fp, "%s %c %s\n", q->key, cnf->separator, q->value);
       q = q->next;
     }
@@ -294,104 +337,125 @@ bool cnf_write_file(Config *cnf, const char *filename, const char *header)
 }
 
 /**
-* É¾³ıoption
-**/
+ * åˆ é™¤option
+ **/
 bool cnf_remove_option(Config *cnf, const char *section, const char *key)
 {
   Data *ps = cnf_has_section(cnf, section);
-  if (NULL == ps) { /* Ã»ÕÒµ½Ôò²»´æÔÚ */
+  if (NULL == ps)
+  { /* æ²¡æ‰¾åˆ°åˆ™ä¸å­˜åœ¨ */
     return false;
   }
 
   Option *p, *q;
   q = p = ps->option;
-  while (NULL != p && 0 != strcmp(p->key, key)) {
-    if (p != q) { q = q->next; } /* Ê¼ÖÕÈÃq´¦ÓÚpµÄÉÏÒ»¸ö½Úµã */
+  while (NULL != p && 0 != strcmp(p->key, key))
+  {
+    if (p != q)
+    {
+      q = q->next;
+    } /* å§‹ç»ˆè®©qå¤„äºpçš„ä¸Šä¸€ä¸ªèŠ‚ç‚¹ */
     p = p->next;
   }
 
-  if (NULL == p) { /* Ã»ÕÒµ½Ôò²»´æÔÚ */
+  if (NULL == p)
+  { /* æ²¡æ‰¾åˆ°åˆ™ä¸å­˜åœ¨ */
     return false;
   }
 
-  if (p == q) { /* µÚÒ»¸öoption¾ÍÆ¥ÅäÁË */
+  if (p == q)
+  { /* ç¬¬ä¸€ä¸ªoptionå°±åŒ¹é…äº† */
     ps->option = p->next;
-  } else {
+  }
+  else
+  {
     q->next = p->next;
   }
 
   free(p->key);
   free(p->value);
   free(p);
-  q = p = NULL; // ±ÜÃâÒ°Ö¸Õë
+  q = p = NULL; // é¿å…é‡æŒ‡é’ˆ
 
   return true;
 }
 
 /**
-* É¾³ısection
-**/
+ * åˆ é™¤section
+ **/
 bool cnf_remove_section(Config *cnf, const char *section)
 {
-  if (str_empty(section)) {
+  if (str_empty(section))
+  {
     return false;
   }
 
   Data *p, *q;
-  q = p = cnf->data; /* ÈÃ±äÁ¿pÑ­»·±éÀúdata,ÕÒµ½¶ÔÓ¦section */
-  while (NULL != p && 0 != strcmp(p->section, section)) {
-    if (p != q) { q = q->next; } /* Ê¼ÖÕÈÃq´¦ÓÚpµÄÉÏÒ»¸ö½Úµã */
+  q = p = cnf->data; /* è®©å˜é‡på¾ªç¯éå†data,æ‰¾åˆ°å¯¹åº”section */
+  while (NULL != p && 0 != strcmp(p->section, section))
+  {
+    if (p != q)
+    {
+      q = q->next;
+    } /* å§‹ç»ˆè®©qå¤„äºpçš„ä¸Šä¸€ä¸ªèŠ‚ç‚¹ */
     p = p->next;
   }
 
-  if (NULL == p) { /* Ã»ÓĞÕÒµ½section */
+  if (NULL == p)
+  { /* æ²¡æœ‰æ‰¾åˆ°section */
     return false;
   }
 
-  if (p == q) { /* ÕâÀï±íÊ¾µÚÒ»¸ösection,Òò´ËÁ´±íÍ·Î»ÖÃ¸Ä±ä */
+  if (p == q)
+  { /* è¿™é‡Œè¡¨ç¤ºç¬¬ä¸€ä¸ªsection,å› æ­¤é“¾è¡¨å¤´ä½ç½®æ”¹å˜ */
     cnf->data = p->next;
-  } else { /* ´ËÊ±ÊÇÖĞ¼ä»òÎ²²¿½Úµã */
+  }
+  else
+  { /* æ­¤æ—¶æ˜¯ä¸­é—´æˆ–å°¾éƒ¨èŠ‚ç‚¹ */
     q->next = p->next;
   }
 
-  Option *ot,*o = p->option;
-  while (NULL != o) { /* Ñ­»·ÊÍ·ÅËùÓĞoption */
+  Option *ot, *o = p->option;
+  while (NULL != o)
+  { /* å¾ªç¯é‡Šæ”¾æ‰€æœ‰option */
     free(o->key);
     free(o->value);
     ot = o;
     o = o->next;
     free(ot);
   }
-  free(p->option); /* ÊÍ·ÅÄÚ´æ */
-  free(p);         /* ÊÍ·ÅÉ¾³ıµÄsection */
-  q = p = NULL;  // ±ÜÃâÒ°Ö¸Õë
+  free(p);      /* é‡Šæ”¾åˆ é™¤çš„section */
+  q = p = NULL; // é¿å…é‡æŒ‡é’ˆ
 
   return true;
 }
 
 /**
-* Ïú»ÙConfig¶ÔÏó
-* É¾³ıËùÓĞÊı¾İ
-**/
+ * é”€æ¯Configå¯¹è±¡
+ * åˆ é™¤æ‰€æœ‰æ•°æ®
+ **/
 void destroy_config(Config **cnf)
 {
-  if (NULL == *cnf) return;
+  if (NULL == *cnf)
+    return;
 
   if (NULL != (*cnf)->data)
   {
     Data *pt, *p = (*cnf)->data;
     Option *qt, *q;
-    while (NULL != p) {
+    while (NULL != p)
+    {
       q = p->option;
-      while (NULL != q) {
+      while (NULL != q)
+      {
         free(q->key);
-        free(q->value); /* ÊÍ·ÅÄÚ´æ */
+        free(q->value); /* é‡Šæ”¾å†…å­˜ */
 
         qt = q;
         q = q->next;
         free(qt);
       }
-      free(p->section); /* ÊÍ·ÅÄÚ´æ */
+      free(p->section); /* é‡Šæ”¾å†…å­˜ */
 
       pt = p;
       p = p->next;
@@ -403,16 +467,18 @@ void destroy_config(Config **cnf)
 }
 
 /**
-* ´òÓ¡µ±Ç°Config¶ÔÏó
-**/
+ * æ‰“å°å½“å‰Configå¯¹è±¡
+ **/
 void print_config(Config *cnf)
 {
-  Data *p = cnf->data; // Ñ­»·´òÓ¡½á¹û
-  while (NULL != p) {
-    printf("[%s]\n",p->section);
+  Data *p = cnf->data; // å¾ªç¯æ‰“å°ç»“æœ
+  while (NULL != p)
+  {
+    printf("[%s]\n", p->section);
 
     Option *q = p->option;
-    while (NULL != q) {
+    while (NULL != q)
+    {
       printf("%s%c%s\n", q->key, cnf->separator, q->value);
       q = q->next;
     }
@@ -421,36 +487,38 @@ void print_config(Config *cnf)
 }
 
 /**
-* Ö÷³ÌĞò,·ÅÔÚ×îµ×ÏÂ
-* ±ÜÃâÖØ¸´ÉùÃ÷ÆäËûº¯Êı
-**/
+ * ä¸»ç¨‹åº,æ”¾åœ¨æœ€åº•ä¸‹
+ * é¿å…é‡å¤å£°æ˜å…¶ä»–å‡½æ•°
+ **/
 int main(int argc, char *argv[])
 {
-  // ¶ÁÈ¡ÅäÖÃÎÄ¼şcnf.ini,×¢ÊÍ×Ö·ûÎª#,·Ö¸ô¼üÖµ×Ö·ûÎª=
+  // è¯»å–é…ç½®æ–‡ä»¶cnf.ini,æ³¨é‡Šå­—ç¬¦ä¸º#,åˆ†éš”é”®å€¼å­—ç¬¦ä¸º=
   Config *cnf = cnf_read_config("cnf.ini", '#', '=');
-  if (NULL == cnf) {
-    return -1; /* ´´½¨¶ÔÏóÊ§°Ü */
+  if (NULL == cnf)
+  {
+    return -1; /* åˆ›å»ºå¯¹è±¡å¤±è´¥ */
   }
 
   printf("-------------- After Read File --------------\n");
-  print_config(cnf); // ´òÓ¡cnf¶ÔÏó
-  cnf_remove_section(cnf,"AAA"); // É¾³ıAAAµÄsection
-  cnf_remove_option(cnf, "CC","df");  // É¾³ıCCÏÂµÄdf
-  cnf_remove_option(cnf, "CC","zxc");  // É¾³ıCCÏÂµÄdf
+  print_config(cnf);                   // æ‰“å°cnfå¯¹è±¡
+  cnf_remove_section(cnf, "AAA");      // åˆ é™¤AAAçš„section
+  cnf_remove_option(cnf, "CC", "df");  // åˆ é™¤CCä¸‹çš„df
+  cnf_remove_option(cnf, "CC", "zxc"); // åˆ é™¤CCä¸‹çš„df
   printf("-------------- After remove --------------\n");
-  print_config(cnf); // ´òÓ¡cnf¶ÔÏó
-  cnf_add_option(cnf, "NEW", "new_1", "true");  // ĞÂÔöNEWÏÂµÄnew_1µÄÖµ
-  cnf_add_option(cnf, "NEW", "new_2", "abc"); // ĞÂÔöNEWÏÂµÄnew_2µÄÖµ
-  cnf_add_option(cnf, "NEW", "new_2", "123456789"); // ¸²¸ÇÖ®Ç°µÄÖµ
+  print_config(cnf);                                // æ‰“å°cnfå¯¹è±¡
+  cnf_add_option(cnf, "NEW", "new_1", "true");      // æ–°å¢NEWä¸‹çš„new_1çš„å€¼
+  cnf_add_option(cnf, "NEW", "new_2", "abc");       // æ–°å¢NEWä¸‹çš„new_2çš„å€¼
+  cnf_add_option(cnf, "NEW", "new_2", "123456789"); // è¦†ç›–ä¹‹å‰çš„å€¼
   cnf_add_option(cnf, "NEW1", "new_2", "true");
   printf("-------------- After add --------------\n");
-  print_config(cnf); // ´òÓ¡cnf¶ÔÏó
+  print_config(cnf); // æ‰“å°cnfå¯¹è±¡
 
-  cnf_get_value(cnf, "NEW1", "new_2"); // »ñÈ¡NEW1ÏÂµÄnew_2Öµ
-  printf("cnf_get_value:'%s','%d','%d','%f'\n",cnf->re_string,cnf->re_int,cnf->re_bool,cnf->re_double);
+  cnf_get_value(cnf, "NEW1", "new_2"); // è·å–NEW1ä¸‹çš„new_2å€¼
+  printf("cnf_get_value:'%s','%d','%d','%f'\n", cnf->re_string, cnf->re_int, cnf->re_bool, cnf->re_double);
 
-  cnf->separator = ':'; // ½«·Ö¸ô·û¸Ä³É : ,Ã°ºÅ
-  cnf_write_file(cnf, "cnf_new.ini", "write a new ini file!"); // ½«¶ÔÏóĞ´Èëcnf_new.iniÎÄ¼ş
-  destroy_config(&cnf); // Ïú»ÙConfig¶ÔÏó
+  cnf->separator = ':';                                        // å°†åˆ†éš”ç¬¦æ”¹æˆ : ,å†’å·
+  cnf_write_file(cnf, "cnf_new.ini", "write a new ini file!"); // å°†å¯¹è±¡å†™å…¥cnf_new.iniæ–‡ä»¶
+  destroy_config(&cnf);                                        // é”€æ¯Configå¯¹è±¡
+  printf("-------------- End --------------\n");
   return 0;
 }
